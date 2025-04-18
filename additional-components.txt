@@ -1,0 +1,387 @@
+// src/components/features/WeatherCard.js
+import React from 'react';
+
+function WeatherCard({ weather }) {
+  if (!weather) return null;
+  
+  const { main, weather: weatherDetails, wind, sys } = weather;
+  const weatherIcon = weatherDetails[0].icon;
+  const weatherDescription = weatherDetails[0].description;
+  
+  // Format sunrise and sunset times
+  const formatTime = (timestamp) => {
+    const date = new Date(timestamp * 1000);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+  
+  const sunrise = formatTime(sys.sunrise);
+  const sunset = formatTime(sys.sunset);
+
+  return (
+    <div className="weather-card fade-in">
+      <div className="weather-card-header">
+        <h2>{weather.name}, {sys.country}</h2>
+        <div className="weather-description">
+          <img 
+            src={`http://openweathermap.org/img/wn/${weatherIcon}@2x.png`} 
+            alt={weatherDescription}
+            className="weather-icon"
+          />
+          <span>{weatherDescription}</span>
+        </div>
+      </div>
+      
+      <div className="weather-temp">
+        {Math.round(main.temp)}°
+      </div>
+      
+      <div className="weather-feels-like">
+        Feels like {Math.round(main.feels_like)}°
+      </div>
+      
+      <div className="weather-info">
+        <div className="weather-info-item">
+          <span className="weather-info-label">Humidity:</span>
+          <span>{main.humidity}%</span>
+        </div>
+        
+        <div className="weather-info-item">
+          <span className="weather-info-label">Wind:</span>
+          <span>{wind.speed} m/s</span>
+        </div>
+        
+        <div className="weather-info-item">
+          <span className="weather-info-label">Sunrise:</span>
+          <span>{sunrise}</span>
+        </div>
+        
+        <div className="weather-info-item">
+          <span className="weather-info-label">Sunset:</span>
+          <span>{sunset}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default WeatherCard;
+
+// src/pages/ForecastDetails.js
+import React, { useContext, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { WeatherContext } from '../context/WeatherContext';
+import WeatherCard from '../components/features/WeatherCard';
+import ForecastChart from '../components/features/ForecastChart';
+import ForecastTable from '../components/features/ForecastTable';
+import ExportButton from '../components/common/ExportButton';
+import LoadingSpinner from '../components/common/LoadingSpinner';
+import ErrorMessage from '../components/common/ErrorMessage';
+
+function ForecastDetails() {
+  const { location: locationParam } = useParams();
+  const { 
+    currentWeather, 
+    forecast, 
+    location,
+    setLocation, 
+    loading, 
+    error 
+  } = useContext(WeatherContext);
+  
+  // Update location if coming from URL parameter
+  useEffect(() => {
+    if (locationParam && locationParam !== location) {
+      setLocation(locationParam);
+    }
+  }, [locationParam, location, setLocation]);
+
+  if (loading) return <LoadingSpinner />;
+  if (error) return <ErrorMessage message={error} />;
+
+  return (
+    <div className="forecast-details-page">
+      <div className="forecast-details-header">
+        <h1>Weather Forecast for {location}</h1>
+        <ExportButton data={forecast} filename={`${location}-forecast`} />
+      </div>
+      
+      {currentWeather && (
+        <div className="current-weather-section">
+          <h2>Current Weather</h2>
+          <WeatherCard weather={currentWeather} />
+        </div>
+      )}
+      
+      {forecast && (
+        <>
+          <div className="forecast-chart-section">
+            <h2>Temperature Forecast</h2>
+            <ForecastChart forecast={forecast} />
+          </div>
+          
+          <div className="forecast-table-section">
+            <h2>5-Day Forecast</h2>
+            <ForecastTable forecast={forecast} />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+export default ForecastDetails;
+
+// src/components/features/ForecastTable.js
+import React from 'react';
+
+function ForecastTable({ forecast }) {
+  if (!forecast || !forecast.list) {
+    return null;
+  }
+  
+  // Group forecast data by day
+  const groupByDay = () => {
+    const grouped = {};
+    
+    forecast.list.forEach(item => {
+      const date = new Date(item.dt * 1000);
+      const day = date.toLocaleDateString();
+      
+      if (!grouped[day]) {
+        grouped[day] = [];
+      }
+      
+      grouped[day].push(item);
+    });
+    
+    return grouped;
+  };
+  
+  const getDaySummary = (dayData) => {
+    // Calculate min and max temperatures for the day
+    let minTemp = Number.MAX_SAFE_INTEGER;
+    let maxTemp = Number.MIN_SAFE_INTEGER;
+    let mostFrequentWeather = {};
+    let weatherCount = {};
+    
+    dayData.forEach(item => {
+      // Track temperatures
+      if (item.main.temp_min < minTemp) minTemp = item.main.temp_min;
+      if (item.main.temp_max > maxTemp) maxTemp = item.main.temp_max;
+      
+      // Track most common weather condition
+      const weatherId = item.weather[0].id;
+      if (!weatherCount[weatherId]) {
+        weatherCount[weatherId] = 1;
+      } else {
+        weatherCount[weatherId]++;
+      }
+    });
+    
+    // Find the most frequent weather condition
+    let maxCount = 0;
+    let maxWeatherId = null;
+    
+    Object.keys(weatherCount).forEach(weatherId => {
+      if (weatherCount[weatherId] > maxCount) {
+        maxCount = weatherCount[weatherId];
+        maxWeatherId = weatherId;
+      }
+    });
+    
+    // Find the corresponding weather object
+    for (let item of dayData) {
+      if (item.weather[0].id == maxWeatherId) {
+        mostFrequentWeather = item.weather[0];
+        break;
+      }
+    }
+    
+    return {
+      minTemp: Math.round(minTemp),
+      maxTemp: Math.round(maxTemp),
+      weather: mostFrequentWeather
+    };
+  };
+  
+  const groupedForecast = groupByDay();
+  const days = Object.keys(groupedForecast);
+
+  return (
+    <div className="forecast-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Weather</th>
+            <th>Min/Max Temp</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {days.map(day => {
+            const daySummary = getDaySummary(groupedForecast[day]);
+            const date = new Date(day);
+            const formattedDate = date.toLocaleDateString('en-US', {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric'
+            });
+            
+            return (
+              <tr key={day}>
+                <td>{formattedDate}</td>
+                <td>
+                  <div className="weather-cell">
+                    <img 
+                      src={`http://openweathermap.org/img/wn/${daySummary.weather.icon}.png`} 
+                      alt={daySummary.weather.description}
+                    />
+                    <span>{daySummary.weather.description}</span>
+                  </div>
+                </td>
+                <td>
+                  {daySummary.minTemp}° / {daySummary.maxTemp}°
+                </td>
+                <td>
+                  <button 
+                    className="details-button"
+                    onClick={() => alert(`Detailed forecast for ${formattedDate}`)}
+                  >
+                    View Details
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export default ForecastTable;
+
+// src/components/common/LoadingSpinner.js
+import React from 'react';
+
+function LoadingSpinner() {
+  return (
+    <div className="loading-spinner">
+      <div className="spinner"></div>
+      <p>Loading weather data...</p>
+    </div>
+  );
+}
+
+export default LoadingSpinner;
+
+// src/components/common/ErrorMessage.js
+import React from 'react';
+
+function ErrorMessage({ message }) {
+  return (
+    <div className="error-container">
+      <h3>Error</h3>
+      <p>{message || 'An unexpected error occurred. Please try again.'}</p>
+    </div>
+  );
+}
+
+export default ErrorMessage;
+
+// src/hooks/useLocalStorage.js
+import { useState, useEffect } from 'react';
+
+function useLocalStorage(key, initialValue) {
+  // Get from local storage then
+  // parse stored json or return initialValue
+  const readValue = () => {
+    if (typeof window === 'undefined') {
+      return initialValue;
+    }
+    
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : initialValue;
+    } catch (error) {
+      console.warn(`Error reading localStorage key "${key}":`, error);
+      return initialValue;
+    }
+  };
+  
+  // State to store our value
+  const [storedValue, setStoredValue] = useState(readValue);
+  
+  // Return a wrapped version of useState's setter function that
+  // persists the new value to localStorage.
+  const setValue = value => {
+    try {
+      // Allow value to be a function so we have the same API as useState
+      const valueToStore =
+        value instanceof Function ? value(storedValue) : value;
+      
+      // Save state
+      setStoredValue(valueToStore);
+      
+      // Save to local storage
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(key, JSON.stringify(valueToStore));
+      }
+    } catch (error) {
+      console.warn(`Error setting localStorage key "${key}":`, error);
+    }
+  };
+  
+  // Listen for changes to this local storage key in other tabs/windows
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === key && e.newValue) {
+        setStoredValue(JSON.parse(e.newValue));
+      }
+    };
+    
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', handleStorageChange);
+      return () => {
+        window.removeEventListener('storage', handleStorageChange);
+      };
+    }
+  }, [key]);
+  
+  return [storedValue, setValue];
+}
+
+export default useLocalStorage;
+
+// src/utils/themeUtils.js
+export const setTheme = (theme) => {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('theme', theme);
+};
+
+export const getTheme = () => {
+  return localStorage.getItem('theme') || 'light';
+};
+
+export const initTheme = () => {
+  const savedTheme = getTheme();
+  setTheme(savedTheme);
+};
+
+// src/index.js
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import './styles/App.css';
+import { initTheme } from './utils/themeUtils';
+
+// Initialize theme from local storage
+initTheme();
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);

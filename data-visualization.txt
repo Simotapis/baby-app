@@ -1,0 +1,225 @@
+// src/components/features/WeatherDataVisualizations.js
+import React, { useState } from 'react';
+import { 
+  LineChart, 
+  Line, 
+  BarChart, 
+  Bar, 
+  PieChart, 
+  Pie, 
+  Cell,
+  AreaChart,
+  Area,
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer 
+} from 'recharts';
+
+function WeatherDataVisualizations({ forecast }) {
+  const [activeChart, setActiveChart] = useState('temperature');
+  
+  if (!forecast || !forecast.list) {
+    return null;
+  }
+  
+  // Process forecast data for various charts
+  const processTemperatureData = () => {
+    return forecast.list.slice(0, 8).map(item => ({
+      time: new Date(item.dt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      temperature: Math.round(item.main.temp),
+      feelsLike: Math.round(item.main.feels_like),
+    }));
+  };
+  
+  const processHumidityData = () => {
+    return forecast.list.slice(0, 8).map(item => ({
+      time: new Date(item.dt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      humidity: item.main.humidity,
+    }));
+  };
+  
+  const processWindData = () => {
+    return forecast.list.slice(0, 8).map(item => ({
+      time: new Date(item.dt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      windSpeed: item.wind.speed,
+      windGust: item.wind.gust || item.wind.speed,
+    }));
+  };
+  
+  const processPressureData = () => {
+    return forecast.list.slice(0, 8).map(item => ({
+      time: new Date(item.dt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      pressure: item.main.pressure,
+    }));
+  };
+  
+  const processWeatherTypesData = () => {
+    // Count occurrences of each weather type
+    const weatherTypes = {};
+    
+    forecast.list.forEach(item => {
+      const weatherType = item.weather[0].main;
+      if (weatherTypes[weatherType]) {
+        weatherTypes[weatherType]++;
+      } else {
+        weatherTypes[weatherType] = 1;
+      }
+    });
+    
+    // Convert to array for pie chart
+    return Object.keys(weatherTypes).map(type => ({
+      name: type,
+      value: weatherTypes[type]
+    }));
+  };
+  
+  // Data for different chart types
+  const temperatureData = processTemperatureData();
+  const humidityData = processHumidityData();
+  const windData = processWindData();
+  const pressureData = processPressureData();
+  const weatherTypesData = processWeatherTypesData();
+  
+  // Colors for weather types pie chart
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
+  
+  return (
+    <div className="weather-visualizations">
+      <div className="chart-controls">
+        <button 
+          className={activeChart === 'temperature' ? 'active' : ''}
+          onClick={() => setActiveChart('temperature')}
+        >
+          Temperature
+        </button>
+        <button 
+          className={activeChart === 'humidity' ? 'active' : ''}
+          onClick={() => setActiveChart('humidity')}
+        >
+          Humidity
+        </button>
+        <button 
+          className={activeChart === 'wind' ? 'active' : ''}
+          onClick={() => setActiveChart('wind')}
+        >
+          Wind
+        </button>
+        <button 
+          className={activeChart === 'pressure' ? 'active' : ''}
+          onClick={() => setActiveChart('pressure')}
+        >
+          Pressure
+        </button>
+        <button 
+          className={activeChart === 'weatherTypes' ? 'active' : ''}
+          onClick={() => setActiveChart('weatherTypes')}
+        >
+          Weather Types
+        </button>
+      </div>
+      
+      <div className="chart-container">
+        {activeChart === 'temperature' && (
+          <div className="chart-wrapper">
+            <h3>Temperature Forecast</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={temperatureData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="time" />
+                <YAxis label={{ value: 'Temperature (°)', angle: -90, position: 'insideLeft' }} />
+                <Tooltip formatter={(value) => [`${value}°`, 'Temperature']} />
+                <Legend />
+                <Line type="monotone" dataKey="temperature" name="Temperature" stroke="#ff7300" activeDot={{ r: 8 }} />
+                <Line type="monotone" dataKey="feelsLike" name="Feels Like" stroke="#387908" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+        
+        {activeChart === 'humidity' && (
+          <div className="chart-wrapper">
+            <h3>Humidity Forecast</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={humidityData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="time" />
+                <YAxis label={{ value: 'Humidity (%)', angle: -90, position: 'insideLeft' }} />
+                <Tooltip />
+                <Legend />
+                <Area type="monotone" dataKey="humidity" name="Humidity" stroke="#8884d8" fill="#8884d8" fillOpacity={0.3} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+        
+        {activeChart === 'wind' && (
+          <div className="chart-wrapper">
+            <h3>Wind Forecast</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={windData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="time" />
+                <YAxis label={{ value: 'Wind (m/s)', angle: -90, position: 'insideLeft' }} />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="windSpeed" name="Wind Speed" fill="#8884d8" />
+                <Bar dataKey="windGust" name="Wind Gust" fill="#82ca9d" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+        
+        {activeChart === 'pressure' && (
+          <div className="chart-wrapper">
+            <h3>Pressure Forecast</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={pressureData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="time" />
+                <YAxis
+                  label={{ value: 'Pressure (hPa)', angle: -90, position: 'insideLeft' }}
+                  domain={['dataMin - 5', 'dataMax + 5']}
+                />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="pressure" name="Pressure" stroke="#ff7300" activeDot={{ r: 8 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+        
+        {activeChart === 'weatherTypes' && (
+          <div className="chart-wrapper">
+            <h3>Weather Types Distribution</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={weatherTypesData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={true}
+                  outerRadius={100}
+                  fill="#8884d8"
+                  dataKey="value"
+                  nameKey="name"
+                  label={({name, percent}) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                >
+                  {weatherTypesData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value, name) => [value, name]} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default WeatherDataVisualizations;
